@@ -217,13 +217,49 @@ namespace UrlLib
     private:
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
         {
-            return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
-                std::ifstream file;
-                file.open(path);
-                std::stringstream ss;
-                ss << file.rdbuf();
-                m_responseString = ss.str();
-            });
+            switch (m_responseType)
+            {
+                case UrlResponseType::String:
+                {
+                    return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
+                        std::ifstream file(path);
+                        if (!file.good())
+                        {
+                            std::stringstream msg;
+                            msg << "Failed to read file " << path.c_str();
+                            throw std::runtime_error{msg.str()};
+                        }
+
+                        std::stringstream ss;
+                        ss << file.rdbuf();
+
+                        m_responseString = ss.str();
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
+                }
+                case UrlResponseType::Buffer:
+                {
+                    return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
+                        std::ifstream file(path, std::ios::binary);
+                        if (!file.good())
+                        {
+                            std::stringstream msg;
+                            msg << "Failed to read file " << path.c_str();
+                            throw std::runtime_error{msg.str()};
+                        }
+
+                        std::vector<char> buffer;
+                        buffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+
+                        m_responseBuffer = {(std::byte*)buffer.data(), gsl::narrow_cast<std::size_t>(buffer.size())};
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
+                }
+                default:
+                {
+                    throw std::runtime_error{"Invalid response type"};
+                }
+            }
         }
 
         Foundation::Uri m_uri{nullptr};
