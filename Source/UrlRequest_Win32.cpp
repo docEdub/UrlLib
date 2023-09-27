@@ -3,6 +3,7 @@
 #include <Unknwn.h>
 #include <PathCch.h>
 #include <arcana/threading/task_conversions.h>
+#include <arcana/threading/task_schedulers.h>
 #include <robuffer.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.Web.Http.h>
@@ -265,30 +266,24 @@ namespace UrlLib
                 msg << "Failed to create event (" << GetLastError() << ")";
                 throw std::runtime_error{msg.str()};
             }
-
-            m_implMap[&m_overlapped] = this;
             
-            //std::vector<std::byte> buffer{};
             m_buffer.resize(fileSize);
 
-            if (!ReadFileEx(hFile, m_buffer.data(), m_buffer.size(), &m_overlapped, FileIOCompletionRoutine))
+            if (ReadFile(hFile, m_buffer.data(), m_buffer.size(), NULL, &m_overlapped) || GetLastError() != ERROR_IO_PENDING)
             {
-                CloseHandle(m_overlapped.hEvent);
-                CloseHandle(hFile);
                 std::stringstream msg;
-                msg << "Failed to start reading file " << path.c_str() << " (" << GetLastError() << ") ";
+                msg << "Failed to read file asynchronously: " << path.c_str() << " (" << GetLastError() << ")";
                 throw std::runtime_error{msg.str()};
             }
 
-            arcana::make_task(arcana::inline_scheduler, m_cancellationSource, [this, path, hFile] {
-                WaitForSingleObjectEx(m_overlapped.hEvent, INFINITE, TRUE);
-
-                if (this->m_errorCode == 0)
+            arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path, hFile] {
+                DWORD bytesRead {0};
+                auto ok = GetOverlappedResult(hFile, &this->m_overlapped, &bytesRead, TRUE);
+                if (ok)
                 {
                     this->SetResponseBuffer(m_buffer);
                 }
 
-                m_implMap.erase(&this->m_overlapped);
                 CloseHandle(this->m_overlapped.hEvent);
                 CloseHandle(hFile);
                 
@@ -311,21 +306,7 @@ namespace UrlLib
         DWORD m_errorCode{0};
         gsl::span<std::byte> m_responseBuffer{};
         std::vector<std::byte> m_buffer{};
-
-        static std::unordered_map<OVERLAPPED*, Impl*> m_implMap;
-
-        static VOID CALLBACK FileIOCompletionRoutine(
-            DWORD dwErrorCode,
-            DWORD dwNumberOfBytesTransfered,
-            LPOVERLAPPED lpOverlapped)
-        {
-            auto self = Impl::m_implMap[lpOverlapped];
-            self->m_errorCode = dwErrorCode;
-            //self->m_completionSource.complete();
-        }
     };
-
-    std::unordered_map<OVERLAPPED*, UrlRequest::Impl*> UrlRequest::Impl::m_implMap{};
 }
 
 #include "UrlRequest_Shared.h"
