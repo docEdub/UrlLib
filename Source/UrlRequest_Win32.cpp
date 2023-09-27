@@ -11,6 +11,7 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
 
+#include <fstream>
 #include <sstream>
 
 namespace UrlLib
@@ -214,98 +215,19 @@ namespace UrlLib
         }
 
     private:
-        //arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file)
-        //{
-        //    switch (m_responseType)
-        //    {
-        //        case UrlResponseType::String:
-        //        {
-        //            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
-        //                .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
-        //                    m_responseString = winrt::to_string(text);
-        //                    m_statusCode = UrlStatusCode::Ok;
-        //                });
-        //        }
-        //        case UrlResponseType::Buffer:
-        //        {
-        //            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
-        //                .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
-        //                    m_responseBuffer = std::move(buffer);
-        //                    m_statusCode = UrlStatusCode::Ok;
-        //                });
-        //        }
-        //        default:
-        //        {
-        //            throw std::runtime_error{"Invalid response type"};
-        //        }
-        //    }
-        //}
-
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
         {
-            auto hFile = CreateFileW(path.c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-            if (hFile == INVALID_HANDLE_VALUE) {
-                std::stringstream msg;
-                msg << "Failed to open file: " << path.c_str() << " (" << GetLastError() << ")";
-                throw std::runtime_error{msg.str()};
-            }
-
-            DWORD fileSize = GetFileSize(hFile, nullptr);
-            if (fileSize == 0)
-            {
-                std::stringstream msg;
-                msg << "Failed to get file size: " << path.c_str() << " (" << GetLastError() << ")";
-                throw std::runtime_error{msg.str()};
-            }
-
-            memset(&m_overlapped, 0, sizeof(m_overlapped));
-            m_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-            if (m_overlapped.hEvent == NULL) {
-                CloseHandle(hFile);
-                std::stringstream msg;
-                msg << "Failed to create event (" << GetLastError() << ")";
-                throw std::runtime_error{msg.str()};
-            }
-            
-            m_buffer.resize(fileSize);
-
-            if (ReadFile(hFile, m_buffer.data(), m_buffer.size(), NULL, &m_overlapped) || GetLastError() != ERROR_IO_PENDING)
-            {
-                std::stringstream msg;
-                msg << "Failed to read file asynchronously: " << path.c_str() << " (" << GetLastError() << ")";
-                throw std::runtime_error{msg.str()};
-            }
-
-            arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path, hFile] {
-                DWORD bytesRead {0};
-                auto ok = GetOverlappedResult(hFile, &this->m_overlapped, &bytesRead, TRUE);
-                if (ok)
-                {
-                    this->SetResponseBuffer(m_buffer);
-                }
-
-                CloseHandle(this->m_overlapped.hEvent);
-                CloseHandle(hFile);
-                
-                m_completionSource.complete();
-
-                if (this->m_errorCode != 0)
-                {
-                    std::stringstream msg;
-                    msg << "Failed to read file: " << path.c_str() << " (" << GetLastError() << ")";
-                    throw std::runtime_error{msg.str()};
-                }
-             });
-
-            return m_completionSource.as_task();
+            return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
+                std::ifstream file;
+                file.open(path);
+                std::stringstream ss;
+                ss << file.rdbuf();
+                m_responseString = ss.str();
+            });
         }
 
         Foundation::Uri m_uri{nullptr};
-        arcana::task_completion_source<void, std::exception_ptr> m_completionSource{};
-        OVERLAPPED m_overlapped;
-        DWORD m_errorCode{0};
         gsl::span<std::byte> m_responseBuffer{};
-        std::vector<std::byte> m_buffer{};
     };
 }
 
