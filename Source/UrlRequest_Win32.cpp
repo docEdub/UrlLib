@@ -10,6 +10,8 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
 
+#include <sstream>
+
 namespace UrlLib
 {
     using namespace winrt::Windows;
@@ -85,12 +87,13 @@ namespace UrlLib
                         path = std::wstring(GetInstalledLocation()) + L'\\' + path;
                     }
 
-                    path = ResolveSymlink(path);
+                    //path = ResolveSymlink(path);
 
-                    return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
-                            return LoadFileAsync(file);
-                        });
+                    //return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
+                    //    .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
+                    //        return LoadFileAsync(file);
+                    //    });
+                    return LoadFileAsync(path);
                 }
                 else
                 {
@@ -163,7 +166,7 @@ namespace UrlLib
                                     return arcana::create_task<std::exception_ptr>(responseMessage.Content().ReadAsBufferAsync())
                                         .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer)
                                         {
-                                            m_responseBuffer = std::move(buffer);
+                                            SetResponseBuffer(buffer);
                                             m_statusCode = UrlStatusCode::Ok;
                                         });
                                 }
@@ -184,48 +187,135 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            if (!m_responseBuffer)
-            {
-                return {};
-            }
+            //if (!m_responseBuffer)
+            //{
+            //    return {};
+            //}
 
-            std::byte* bytes;
-            auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+            //std::byte* bytes;
+            //auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+            //winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
+            //return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
+            return m_responseBuffer;
+        }
+
+        void SetResponseBuffer(Storage::Streams::IBuffer responseBuffer)
+        {
+            std::byte* bytes{nullptr};
+            auto bufferByteAccess = responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
             winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
+            m_responseBuffer = {bytes, gsl::narrow_cast<std::size_t>(responseBuffer.Length())};
+        }
+
+        void SetResponseBuffer(std::vector<std::byte> responseBuffer)
+        {
+            m_responseBuffer = {responseBuffer.data(), gsl::narrow_cast<std::size_t>(responseBuffer.size())};
         }
 
     private:
-        arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file)
+        //arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file)
+        //{
+        //    switch (m_responseType)
+        //    {
+        //        case UrlResponseType::String:
+        //        {
+        //            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
+        //                .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
+        //                    m_responseString = winrt::to_string(text);
+        //                    m_statusCode = UrlStatusCode::Ok;
+        //                });
+        //        }
+        //        case UrlResponseType::Buffer:
+        //        {
+        //            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
+        //                .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
+        //                    m_responseBuffer = std::move(buffer);
+        //                    m_statusCode = UrlStatusCode::Ok;
+        //                });
+        //        }
+        //        default:
+        //        {
+        //            throw std::runtime_error{"Invalid response type"};
+        //        }
+        //    }
+        //}
+
+        arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
         {
-            switch (m_responseType)
-            {
-                case UrlResponseType::String:
-                {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
-                            m_responseString = winrt::to_string(text);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
-                }
-                case UrlResponseType::Buffer:
-                {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
-                            m_responseBuffer = std::move(buffer);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
-                }
-                default:
-                {
-                    throw std::runtime_error{"Invalid response type"};
-                }
+            auto hFile = CreateFileW(path.c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+            if (hFile == INVALID_HANDLE_VALUE) {
+                std::stringstream msg;
+                msg << "Failed to open file: " << path.c_str() << " (" << GetLastError() << ")";
+                throw std::runtime_error{msg.str()};
             }
+
+            DWORD fileSize = GetFileSize(hFile, nullptr);
+            if (fileSize == 0)
+            {
+                std::stringstream msg;
+                msg << "Failed to get file size: " << path.c_str() << " (" << GetLastError() << ")";
+                throw std::runtime_error{msg.str()};
+            }
+
+            memset(&m_overlapped, 0, sizeof(m_overlapped));
+            m_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+            if (m_overlapped.hEvent == NULL) {
+                std::stringstream msg;
+                msg << "Failed to create event (" << GetLastError() << ")";
+                throw std::runtime_error{msg.str()};
+            }
+
+            m_implMap[&m_overlapped] = this;
+            
+            std::vector<std::byte> buffer{};
+            buffer.resize(fileSize);
+
+            if (!ReadFileEx(hFile, buffer.data(), buffer.size(), &m_overlapped, FileIOCompletionRoutine))
+            {
+                std::stringstream msg;
+                msg << "Failed to start reading file " << path.c_str() << " (" << GetLastError() << ") ";
+                throw std::runtime_error{msg.str()};
+            }
+
+            return m_completionSource.as_task().then(arcana::inline_scheduler, m_cancellationSource, [this, path, hFile, buffer = std::move(buffer)] {
+                if (this->m_errorCode == 0)
+                {
+                    this->SetResponseBuffer(buffer);
+                }
+
+                m_implMap.erase(&this->m_overlapped);
+                CloseHandle(this->m_overlapped.hEvent);
+                CloseHandle(hFile);
+
+                if (this->m_errorCode != 0)
+                {
+                    std::stringstream msg;
+                    msg << "Failed to read file: " << path.c_str() << " (" << GetLastError() << ")";
+                    throw std::runtime_error{msg.str()};
+                }
+             });
         }
 
         Foundation::Uri m_uri{nullptr};
-        Storage::Streams::IBuffer m_responseBuffer{};
+        arcana::task_completion_source<void, std::exception_ptr> m_completionSource{};
+        OVERLAPPED m_overlapped;
+        DWORD m_errorCode{0};
+        gsl::span<std::byte> m_responseBuffer{};
+
+        static std::unordered_map<OVERLAPPED*, Impl*> m_implMap;
+
+        static VOID CALLBACK FileIOCompletionRoutine(
+            DWORD dwErrorCode,
+            DWORD dwNumberOfBytesTransfered,
+            LPOVERLAPPED lpOverlapped)
+        {
+            auto self = Impl::m_implMap[lpOverlapped];
+            self->m_errorCode = dwErrorCode;
+            self->m_completionSource.complete();
+        }
     };
+
+    std::unordered_map<OVERLAPPED*, UrlRequest::Impl*> UrlRequest::Impl::m_implMap{};
 }
 
 #include "UrlRequest_Shared.h"
