@@ -189,15 +189,6 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            //if (!m_responseBuffer)
-            //{
-            //    return {};
-            //}
-
-            //std::byte* bytes;
-            //auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
-            //winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            //return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
             return m_responseBuffer;
         }
 
@@ -209,9 +200,9 @@ namespace UrlLib
             m_responseBuffer = {bytes, gsl::narrow_cast<std::size_t>(responseBuffer.Length())};
         }
 
-        void SetResponseBuffer(std::vector<std::byte>& responseBuffer)
+        void SetResponseBuffer(std::vector<char>& responseBuffer)
         {
-            m_responseBuffer = {responseBuffer.data(), gsl::narrow_cast<std::size_t>(responseBuffer.size())};
+            m_responseBuffer = {(std::byte*)responseBuffer.data(), gsl::narrow_cast<std::size_t>(responseBuffer.size())};
         }
 
     private:
@@ -248,10 +239,9 @@ namespace UrlLib
                             throw std::runtime_error{msg.str()};
                         }
 
-                        std::vector<char> buffer;
-                        buffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+                        m_fileResponseBuffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
-                        m_responseBuffer = {(std::byte*)buffer.data(), gsl::narrow_cast<std::size_t>(buffer.size())};
+                        SetResponseBuffer(m_fileResponseBuffer);
                         m_statusCode = UrlStatusCode::Ok;
                     });
                 }
@@ -263,7 +253,9 @@ namespace UrlLib
         }
 
         Foundation::Uri m_uri{nullptr};
-        gsl::span<std::byte> m_responseBuffer{};
+        Storage::Streams::IBuffer m_httpResponseBuffer{};
+        std::vector<char> m_fileResponseBuffer;
+        gsl::span<std::byte> m_responseBuffer;
     };
 }
 
