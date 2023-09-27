@@ -207,7 +207,7 @@ namespace UrlLib
             m_responseBuffer = {bytes, gsl::narrow_cast<std::size_t>(responseBuffer.Length())};
         }
 
-        void SetResponseBuffer(std::vector<std::byte> responseBuffer)
+        void SetResponseBuffer(std::vector<std::byte>& responseBuffer)
         {
             m_responseBuffer = {responseBuffer.data(), gsl::narrow_cast<std::size_t>(responseBuffer.size())};
         }
@@ -260,6 +260,7 @@ namespace UrlLib
             memset(&m_overlapped, 0, sizeof(m_overlapped));
             m_overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
             if (m_overlapped.hEvent == NULL) {
+                CloseHandle(hFile);
                 std::stringstream msg;
                 msg << "Failed to create event (" << GetLastError() << ")";
                 throw std::runtime_error{msg.str()};
@@ -267,25 +268,31 @@ namespace UrlLib
 
             m_implMap[&m_overlapped] = this;
             
-            std::vector<std::byte> buffer{};
-            buffer.resize(fileSize);
+            //std::vector<std::byte> buffer{};
+            m_buffer.resize(fileSize);
 
-            if (!ReadFileEx(hFile, buffer.data(), buffer.size(), &m_overlapped, FileIOCompletionRoutine))
+            if (!ReadFileEx(hFile, m_buffer.data(), m_buffer.size(), &m_overlapped, FileIOCompletionRoutine))
             {
+                CloseHandle(m_overlapped.hEvent);
+                CloseHandle(hFile);
                 std::stringstream msg;
                 msg << "Failed to start reading file " << path.c_str() << " (" << GetLastError() << ") ";
                 throw std::runtime_error{msg.str()};
             }
 
-            return m_completionSource.as_task().then(arcana::inline_scheduler, m_cancellationSource, [this, path, hFile, buffer = std::move(buffer)] {
+            arcana::make_task(arcana::inline_scheduler, m_cancellationSource, [this, path, hFile] {
+                WaitForSingleObjectEx(m_overlapped.hEvent, INFINITE, TRUE);
+
                 if (this->m_errorCode == 0)
                 {
-                    this->SetResponseBuffer(buffer);
+                    this->SetResponseBuffer(m_buffer);
                 }
 
                 m_implMap.erase(&this->m_overlapped);
                 CloseHandle(this->m_overlapped.hEvent);
                 CloseHandle(hFile);
+                
+                m_completionSource.complete();
 
                 if (this->m_errorCode != 0)
                 {
@@ -294,6 +301,8 @@ namespace UrlLib
                     throw std::runtime_error{msg.str()};
                 }
              });
+
+            return m_completionSource.as_task();
         }
 
         Foundation::Uri m_uri{nullptr};
@@ -301,6 +310,7 @@ namespace UrlLib
         OVERLAPPED m_overlapped;
         DWORD m_errorCode{0};
         gsl::span<std::byte> m_responseBuffer{};
+        std::vector<std::byte> m_buffer{};
 
         static std::unordered_map<OVERLAPPED*, Impl*> m_implMap;
 
@@ -311,7 +321,7 @@ namespace UrlLib
         {
             auto self = Impl::m_implMap[lpOverlapped];
             self->m_errorCode = dwErrorCode;
-            self->m_completionSource.complete();
+            //self->m_completionSource.complete();
         }
     };
 
