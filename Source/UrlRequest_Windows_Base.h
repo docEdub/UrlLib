@@ -159,12 +159,11 @@ namespace UrlLib
         gsl::span<const std::byte> ResponseBuffer() const;
 
     private:
+        arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path);
+
         class WindowsImpl;
 
         std::shared_ptr<WindowsImpl> m_windowsImpl{};
-
-        arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path);
-
         Foundation::Uri m_uri{nullptr};
         Storage::Streams::IBuffer m_winrtResponseBuffer{};
     };
