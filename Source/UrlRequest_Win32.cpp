@@ -3,6 +3,8 @@
 #include <Unknwn.h>
 #include <PathCch.h>
 #include <arcana/threading/task_schedulers.h>
+#include <robuffer.h>
+#include <winrt/Windows.Storage.Streams.h>
 #include <fstream>
 #include <sstream>
 
@@ -29,7 +31,17 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
+            if (m_impl.m_uri.SchemeName() == L"app" || m_impl.m_uri.SchemeName() == L"file")
+            {
+                return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
+            }
+            else
+            {
+                std::byte* bytes{nullptr};
+                auto bufferByteAccess = m_impl.m_winrtResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+                winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
+                return {bytes, gsl::narrow_cast<std::size_t>(m_impl.m_winrtResponseBuffer.Length())};
+            }
         }
 
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
