@@ -85,12 +85,7 @@ namespace UrlLib
                         path = std::wstring(GetInstalledLocation()) + L'\\' + path;
                     }
 
-                    path = ResolveSymlink(path);
-
-                    return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
-                            return LoadFileAsync(file);
-                        });
+                    return LoadFileAsync(path);
                 }
                 else
                 {
@@ -196,31 +191,34 @@ namespace UrlLib
         }
 
     private:
-        arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file)
+        arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path)
         {
-            switch (m_responseType)
-            {
-                case UrlResponseType::String:
-                {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
-                            m_responseString = winrt::to_string(text);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
-                }
-                case UrlResponseType::Buffer:
-                {
-                    return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
-                        .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
-                            m_responseBuffer = std::move(buffer);
-                            m_statusCode = UrlStatusCode::Ok;
-                        });
-                }
-                default:
-                {
-                    throw std::runtime_error{"Invalid response type"};
-                }
-            }
+            return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
+                .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
+                    switch (m_responseType)
+                    {
+                        case UrlResponseType::String:
+                        {
+                            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
+                                .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
+                                    m_responseString = winrt::to_string(text);
+                                    m_statusCode = UrlStatusCode::Ok;
+                                });
+                        }
+                        case UrlResponseType::Buffer:
+                        {
+                            return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
+                                .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
+                                    m_responseBuffer = std::move(buffer);
+                                    m_statusCode = UrlStatusCode::Ok;
+                                });
+                        }
+                        default:
+                        {
+                            throw std::runtime_error{"Invalid response type"};
+                        }
+                    }
+                });
         }
 
         Foundation::Uri m_uri{nullptr};
