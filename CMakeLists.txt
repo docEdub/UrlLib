@@ -61,6 +61,8 @@ elseif(WIN32)
             PUBLIC onecoreuap.lib)
     endif()
     set(ADDITIONAL_SOURCES ${ADDITIONAL_SOURCES}
+        "Source/UrlRequest_Windows_Base.h"
+        "Source/UrlRequest_Windows_Shared.h"
         "Source/WebSocket_Windows.cpp")
 else()
     message(FATAL_ERROR "Unrecognized platform: ${CMAKE_SYSTEM_NAME}")
