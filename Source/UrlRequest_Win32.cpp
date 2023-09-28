@@ -52,20 +52,6 @@ namespace UrlLib
             std::replace(path.begin(), path.end(), '/', '\\');
             return std::move(path);
         }
-
-        std::wstring ResolveSymlink(const std::wstring& path)
-        {
-            std::wstring resolvedPath{path};
-
-            while (std::filesystem::is_symlink(resolvedPath))
-            {
-                resolvedPath = std::filesystem::read_symlink(resolvedPath).wstring();
-            }
-
-            std::replace(resolvedPath.begin(), resolvedPath.end(), L'/', L'\\');
-
-            return std::move(resolvedPath);
-        }
     }
 
     class UrlRequest::Impl : public ImplBase
@@ -88,13 +74,6 @@ namespace UrlLib
                     {
                         path = std::wstring(GetInstalledLocation()) + L'\\' + path;
                     }
-
-                    //path = ResolveSymlink(path);
-
-                    //return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(path))
-                    //    .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
-                    //        return LoadFileAsync(file);
-                    //    });
                     return LoadFileAsync(path);
                 }
                 else
@@ -168,7 +147,7 @@ namespace UrlLib
                                     return arcana::create_task<std::exception_ptr>(responseMessage.Content().ReadAsBufferAsync())
                                         .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer)
                                         {
-                                            SetResponseBuffer(buffer);
+                                            m_httpResponseBuffer = std::move(buffer);
                                             m_statusCode = UrlStatusCode::Ok;
                                         });
                                 }
@@ -189,20 +168,17 @@ namespace UrlLib
 
         gsl::span<const std::byte> ResponseBuffer() const
         {
-            return m_responseBuffer;
-        }
-
-        void SetResponseBuffer(Storage::Streams::IBuffer responseBuffer)
-        {
-            std::byte* bytes{nullptr};
-            auto bufferByteAccess = responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
-            winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            m_responseBuffer = {bytes, gsl::narrow_cast<std::size_t>(responseBuffer.Length())};
-        }
-
-        void SetResponseBuffer(std::vector<char>& responseBuffer)
-        {
-            m_responseBuffer = {(std::byte*)responseBuffer.data(), gsl::narrow_cast<std::size_t>(responseBuffer.size())};
+            if (m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file")
+            {
+                return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
+            }
+            else
+            {
+                std::byte* bytes{nullptr};
+                auto bufferByteAccess = m_httpResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+                winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
+                return {bytes, gsl::narrow_cast<std::size_t>(m_httpResponseBuffer.Length())};
+            }
         }
 
     private:
@@ -240,8 +216,6 @@ namespace UrlLib
                         }
 
                         m_fileResponseBuffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-
-                        SetResponseBuffer(m_fileResponseBuffer);
                         m_statusCode = UrlStatusCode::Ok;
                     });
                 }
@@ -255,7 +229,6 @@ namespace UrlLib
         Foundation::Uri m_uri{nullptr};
         Storage::Streams::IBuffer m_httpResponseBuffer{};
         std::vector<char> m_fileResponseBuffer;
-        gsl::span<std::byte> m_responseBuffer;
     };
 }
 
