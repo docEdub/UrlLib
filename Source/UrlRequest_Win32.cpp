@@ -1,5 +1,8 @@
 #include "UrlRequest_Windows_Base.h"
 
+#include <Unknwn.h>
+#include <PathCch.h>
+#include <arcana/threading/task_schedulers.h>
 #include <fstream>
 #include <sstream>
 

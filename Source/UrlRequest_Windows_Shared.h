@@ -1,5 +1,8 @@
 // Shared pimpl code (not an actual header)
 
+#include <robuffer.h>
+#include <winrt/Windows.Storage.Streams.h>
+
 namespace UrlLib
 {
     UrlRequest::Impl::Impl()
