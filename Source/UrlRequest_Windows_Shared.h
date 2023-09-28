@@ -2,22 +2,17 @@
 
 namespace UrlLib
 {
-    //using namespace winrt::Windows;
-
-    std::shared_ptr<UrlRequest::Impl::WindowsImpl> UrlRequest::Impl::WindowsImpl()
+    UrlRequest::Impl::Impl()
+        : m_windowsImpl{std::make_shared<WindowsImpl>(*this)}
     {
-        if (!m_windowsImpl)
-        {
-            m_windowsImpl = std::make_shared<WindowsImpl>(*this);
-        }
-        return m_windowsImpl;
+
     }
 
     gsl::span<const std::byte> UrlRequest::Impl::ResponseBuffer() const
     {
         if (m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file")
         {
-            return WindowsImpl()->ResponseBuffer();
+            return m_windowsImpl->ResponseBuffer();
         }
         else
         {
@@ -30,7 +25,7 @@ namespace UrlLib
 
     arcana::task<void, std::exception_ptr> UrlRequest::Impl::LoadFileAsync(const std::wstring& path)
     {
-        return WindowsImpl()->LoadFileAsync(path);
+        return m_windowsImpl->LoadFileAsync(path);
     }
 }
 

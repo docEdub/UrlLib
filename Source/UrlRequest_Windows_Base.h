@@ -13,9 +13,6 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Web.Http.Headers.h>
 
-// #include <fstream>
-// #include <sstream>
-
 namespace UrlLib
 {
     using namespace winrt::Windows;
@@ -48,6 +45,8 @@ namespace UrlLib
     class UrlRequest::Impl : public ImplBase
     {
     public:
+        Impl();
+
         void Open(UrlMethod method, const std::string& url)
         {
             m_method = method;
@@ -158,73 +157,15 @@ namespace UrlLib
         }
 
         gsl::span<const std::byte> ResponseBuffer() const;
-        // {
-        //     if (m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file")
-        //     {
-        //         return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
-        //     }
-        //     else
-        //     {
-        //         std::byte* bytes{nullptr};
-        //         auto bufferByteAccess = m_winrtResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
-        //         winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-        //         return {bytes, gsl::narrow_cast<std::size_t>(m_winrtResponseBuffer.Length())};
-        //     }
-        // }
 
     private:
         class WindowsImpl;
 
         std::shared_ptr<WindowsImpl> m_windowsImpl{};
 
-        std::shared_ptr<WindowsImpl> WindowsImpl();
-
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path);
-        // {
-        //     switch (m_responseType)
-        //     {
-        //         case UrlResponseType::String:
-        //         {
-        //             return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
-        //                 std::ifstream file(path);
-        //                 if (!file.good())
-        //                 {
-        //                     std::stringstream msg;
-        //                     msg << "Failed to read file " << path.c_str();
-        //                     throw std::runtime_error{msg.str()};
-        //                 }
-
-        //                 std::stringstream ss;
-        //                 ss << file.rdbuf();
-
-        //                 m_responseString = ss.str();
-        //                 m_statusCode = UrlStatusCode::Ok;
-        //             });
-        //         }
-        //         case UrlResponseType::Buffer:
-        //         {
-        //             return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
-        //                 std::ifstream file(path, std::ios::binary);
-        //                 if (!file.good())
-        //                 {
-        //                     std::stringstream msg;
-        //                     msg << "Failed to read file " << path.c_str();
-        //                     throw std::runtime_error{msg.str()};
-        //                 }
-
-        //                 m_fileResponseBuffer.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-        //                 m_statusCode = UrlStatusCode::Ok;
-        //             });
-        //         }
-        //         default:
-        //         {
-        //             throw std::runtime_error{"Invalid response type"};
-        //         }
-        //     }
-        // }
 
         Foundation::Uri m_uri{nullptr};
         Storage::Streams::IBuffer m_winrtResponseBuffer{};
-        // std::vector<char> m_fileResponseBuffer;
     };
 }

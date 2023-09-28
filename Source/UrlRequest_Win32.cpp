@@ -24,8 +24,6 @@ namespace UrlLib
             : m_impl{impl}
         {}
 
-    private:
-
         gsl::span<const std::byte> ResponseBuffer() const
         {
             return {(std::byte*)m_fileResponseBuffer.data(), gsl::narrow_cast<std::size_t>(m_fileResponseBuffer.size())};
@@ -75,7 +73,10 @@ namespace UrlLib
             }
         }
 
+    private:
         Impl& m_impl;
         std::vector<char> m_fileResponseBuffer;
     };
 }
+
+#include "UrlRequest_Windows_Shared.h"
