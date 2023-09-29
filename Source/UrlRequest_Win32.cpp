@@ -13,6 +13,9 @@ namespace UrlLib
 {
     namespace
     {
+        std::unique_ptr<arcana::dispatcher<32>> dispatcher;
+        uint32_t dispatcherRefCount = 0;
+
         winrt::hstring GetInstalledLocation()
         {
             WCHAR modulePath[4096];
@@ -28,12 +31,24 @@ namespace UrlLib
     public:
         static void Initialize()
         {
-            Dispatcher = std::make_unique<arcana::background_dispatcher<32>>();
+            if (dispatcherRefCount == 0)
+            {
+                dispatcher = std::make_unique<arcana::background_dispatcher<32>>();
+            }
+            dispatcherRefCount++;
         }
 
         static void Uninitialize()
         {
-            Dispatcher.reset();
+            if (dispatcherRefCount == 0)
+            {
+                return;
+            }
+            dispatcherRefCount--;
+            if (dispatcherRefCount == 0)
+            {
+                dispatcher.reset();
+            }
         }
 
         WindowsImpl(Impl& impl)
@@ -61,7 +76,7 @@ namespace UrlLib
             {
                 case UrlResponseType::String:
                 {
-                    return arcana::make_task(*Dispatcher, m_impl.m_cancellationSource, [this, path] {
+                    return arcana::make_task(*dispatcher, m_impl.m_cancellationSource, [this, path] {
                         std::ifstream file(path);
                         if (!file.good())
                         {
@@ -79,7 +94,7 @@ namespace UrlLib
                 }
                 case UrlResponseType::Buffer:
                 {
-                    return arcana::make_task(*Dispatcher, m_impl.m_cancellationSource, [this, path] {
+                    return arcana::make_task(*dispatcher, m_impl.m_cancellationSource, [this, path] {
                         std::ifstream file(path, std::ios::binary);
                         if (!file.good())
                         {
@@ -100,8 +115,6 @@ namespace UrlLib
         }
 
     private:
-        static std::unique_ptr<arcana::dispatcher<32>> Dispatcher;
-
         Impl& m_impl;
         std::vector<char> m_fileResponseBuffer;
     };
