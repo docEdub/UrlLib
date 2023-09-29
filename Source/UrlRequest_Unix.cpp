@@ -30,6 +30,14 @@ namespace UrlLib
     class UrlRequest::Impl : public ImplBase
     {
     public:
+        static void Initialize()
+        {
+        }
+
+        static void Unititialize()
+        {
+        }
+
         ~Impl()
         {
             Cleanup();
@@ -151,7 +159,7 @@ namespace UrlLib
         static void Append(std::vector<std::byte>& byteVector, char* buffer, size_t nitems)
         {
             auto bytes = reinterpret_cast<std::byte*>(buffer);
-            byteVector.insert(byteVector.end(), bytes, bytes + nitems);   
+            byteVector.insert(byteVector.end(), bytes, bytes + nitems);
         }
 
         template<typename DataT>

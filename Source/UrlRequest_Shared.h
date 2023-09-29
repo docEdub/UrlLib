@@ -2,6 +2,16 @@
 
 namespace UrlLib
 {
+    void UrlRequest::Initialize()
+    {
+        Impl::Initialize();
+    }
+
+    void UrlRequest::Unititialize()
+    {
+        Impl::Unititialize();
+    }
+
     UrlRequest::UrlRequest()
         : m_impl{std::make_unique<Impl>()}
     {

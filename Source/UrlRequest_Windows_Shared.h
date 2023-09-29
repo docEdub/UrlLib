@@ -2,6 +2,16 @@
 
 namespace UrlLib
 {
+    void UrlRequest::Impl::Initialize()
+    {
+        WindowsImpl::Initialize();
+    }
+
+    void UrlRequest::Impl::Unititialize()
+    {
+        WindowsImpl::Unititialize();
+    }
+
     UrlRequest::Impl::Impl()
         : m_windowsImpl{std::make_shared<WindowsImpl>(*this)}
     {

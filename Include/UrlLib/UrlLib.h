@@ -30,6 +30,9 @@ namespace UrlLib
     class UrlRequest final
     {
     public:
+        static void Initialize();
+        static void Unititialize();
+
         UrlRequest();
         ~UrlRequest();
 
@@ -58,7 +61,7 @@ namespace UrlLib
         std::optional<std::string> GetResponseHeader(const std::string& headerName) const;
 
         const std::unordered_map<std::string, std::string>& GetAllResponseHeaders() const;
-        
+
         UrlStatusCode StatusCode() const;
 
         std::string_view ResponseUrl() const;

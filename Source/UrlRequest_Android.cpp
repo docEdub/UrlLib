@@ -32,6 +32,14 @@ namespace UrlLib
     class UrlRequest::Impl : public ImplBase
     {
     public:
+        static void Initialize()
+        {
+        }
+
+        static void Unititialize()
+        {
+        }
+
         void Open(UrlMethod method, const std::string& url)
         {
             m_method = method;

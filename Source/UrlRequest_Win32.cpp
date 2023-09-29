@@ -1,8 +1,9 @@
 #include "UrlRequest_Windows_Base.h"
 
+#include <arcana/threading/dispatcher.h>
+#include <arcana/threading/task_schedulers.h>
 #include <Unknwn.h>
 #include <PathCch.h>
-#include <arcana/threading/task_schedulers.h>
 #include <robuffer.h>
 #include <winrt/Windows.Storage.Streams.h>
 #include <fstream>
@@ -25,6 +26,16 @@ namespace UrlLib
     class UrlRequest::Impl::WindowsImpl
     {
     public:
+        static void Initialize()
+        {
+            Dispatcher = std::make_unique<arcana::background_dispatcher<32>>();
+        }
+
+        static void Uninitialize()
+        {
+            Dispatcher.reset();
+        }
+
         WindowsImpl(Impl& impl)
             : m_impl{impl}
         {}
@@ -50,7 +61,7 @@ namespace UrlLib
             {
                 case UrlResponseType::String:
                 {
-                    return arcana::make_task(arcana::threadpool_scheduler, m_impl.m_cancellationSource, [this, path] {
+                    return arcana::make_task(*Dispatcher, m_impl.m_cancellationSource, [this, path] {
                         std::ifstream file(path);
                         if (!file.good())
                         {
@@ -68,7 +79,7 @@ namespace UrlLib
                 }
                 case UrlResponseType::Buffer:
                 {
-                    return arcana::make_task(arcana::threadpool_scheduler, m_impl.m_cancellationSource, [this, path] {
+                    return arcana::make_task(*Dispatcher, m_impl.m_cancellationSource, [this, path] {
                         std::ifstream file(path, std::ios::binary);
                         if (!file.good())
                         {
@@ -89,6 +100,8 @@ namespace UrlLib
         }
 
     private:
+        static std::unique_ptr<arcana::dispatcher<32>> Dispatcher;
+
         Impl& m_impl;
         std::vector<char> m_fileResponseBuffer;
     };

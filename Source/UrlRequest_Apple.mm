@@ -22,6 +22,14 @@ namespace UrlLib
     class UrlRequest::Impl : public ImplBase
     {
     public:
+        static void Initialize()
+        {
+        }
+
+        static void Unititialize()
+        {
+        }
+
         void Open(UrlMethod method, const std::string& url)
         {
             m_method = method;
@@ -82,12 +90,12 @@ namespace UrlLib
                     taskCompletionSource.complete();
                     return;
                 }
-                
+
                 if ([response class] == [NSHTTPURLResponse class])
                 {
                     NSHTTPURLResponse* httpResponse{(NSHTTPURLResponse*)response};
                     m_statusCode = static_cast<UrlStatusCode>(httpResponse.statusCode);
-                    
+
                     for (id key in httpResponse.allHeaderFields)
                     {
                         id value = [httpResponse.allHeaderFields objectForKey:key];
@@ -119,7 +127,7 @@ namespace UrlLib
                         }
                     }
                 }
-                
+
                 taskCompletionSource.complete();
             }};
 

@@ -20,6 +20,14 @@ namespace UrlLib
     class UrlRequest::Impl::WindowsImpl
     {
     public:
+        static void Initialize()
+        {
+        }
+
+        static void Unititialize()
+        {
+        }
+
         WindowsImpl(Impl& impl)
             : m_impl{impl}
         {}

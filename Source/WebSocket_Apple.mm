@@ -36,7 +36,7 @@ class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
         {
             [webSocket open];
         }
-        
+
         void Send(std::string message)
         {
             [webSocket sendMessage:@(message.data())];
@@ -46,7 +46,7 @@ class API_AVAILABLE(ios(13.0)) WebSocket::Impl : public ImplBase
         {
             [webSocket close];
         }
- 
+
     private:
         WebSocket_ObjC *webSocket;
     };
