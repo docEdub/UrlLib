@@ -7,9 +7,9 @@ namespace UrlLib
         Impl::Initialize();
     }
 
-    void UrlRequest::Unititialize()
+    void UrlRequest::Uninitialize()
     {
-        Impl::Unititialize();
+        Impl::Uninitialize();
     }
 
     UrlRequest::UrlRequest()

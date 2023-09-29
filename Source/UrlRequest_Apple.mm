@@ -26,7 +26,7 @@ namespace UrlLib
         {
         }
 
-        static void Unititialize()
+        static void Uninitialize()
         {
         }
 

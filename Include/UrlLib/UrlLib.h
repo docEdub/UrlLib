@@ -31,7 +31,7 @@ namespace UrlLib
     {
     public:
         static void Initialize();
-        static void Unititialize();
+        static void Uninitialize();
 
         UrlRequest();
         ~UrlRequest();
