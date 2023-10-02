@@ -152,7 +152,7 @@ namespace UrlLib
         return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
     }
 
-    arcana::task<void, std::exception_ptr> UrlRequest::Impl::LoadFileAsync(const std::wstring& path)
+    arcana::task<void, std::exception_ptr> UrlRequest::Impl::LoadFileAsync(Storage::StorageFile file)
     {
         switch (m_responseType)
         {
