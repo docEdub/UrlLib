@@ -1,17 +1,5 @@
 #include "UrlRequest_Windows_Shared.h"
 
-#include <Unknwn.h>
-#include <PathCch.h>
-#include <arcana/threading/task_conversions.h>
-#include <arcana/threading/task_schedulers.h>
-#include <robuffer.h>
-#include <winrt/Windows.Storage.Streams.h>
-#include <winrt/Windows.Web.Http.h>
-#include <winrt/Windows.ApplicationModel.h>
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Web.Http.Headers.h>
-#include <winapifamily.h>
-
 #include <filesystem>
 #include <fstream>
 #include <sstream>
