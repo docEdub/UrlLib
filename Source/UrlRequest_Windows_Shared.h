@@ -12,10 +12,6 @@
 #include <winrt/Windows.Web.Http.Headers.h>
 #include <winapifamily.h>
 
-#include <filesystem>
-#include <fstream>
-#include <sstream>
-
 namespace UrlLib
 {
     using namespace winrt::Windows;
