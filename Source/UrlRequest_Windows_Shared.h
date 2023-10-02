@@ -59,13 +59,15 @@ namespace UrlLib
         gsl::span<const std::byte> ResponseBuffer() const;
 
     private:
+#if !WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+        arcana::task<void, std::exception_ptr> LoadFileAsync(Storage::StorageFile file);
+#else
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path);
 
-        Foundation::Uri m_uri{nullptr};
-        Storage::Streams::IBuffer m_responseBuffer{};
-
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
         std::vector<std::byte> m_fileResponseBuffer;
 #endif
+
+        Storage::Streams::IBuffer m_responseBuffer{};
+        Foundation::Uri m_uri{nullptr};
     };
 }
