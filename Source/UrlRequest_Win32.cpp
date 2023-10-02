@@ -116,7 +116,7 @@ namespace UrlLib
                                 return arcana::create_task<std::exception_ptr>(responseMessage.Content().ReadAsBufferAsync())
                                     .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer)
                                     {
-                                        m_httpResponseBuffer = std::move(buffer);
+                                        m_responseBuffer = std::move(buffer);
                                         m_statusCode = UrlStatusCode::Ok;
                                     });
                             }
@@ -141,12 +141,12 @@ namespace UrlLib
         {
             return {m_fileResponseBuffer.data(), m_fileResponseBuffer.size()};
         }
-        else if (m_httpResponseBuffer)
+        else if (m_responseBuffer)
         {
             std::byte* bytes;
-            auto bufferByteAccess = m_httpResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+            auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
             winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            return {bytes, gsl::narrow_cast<std::size_t>(m_httpResponseBuffer.Length())};
+            return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
         }
         return {};
     }

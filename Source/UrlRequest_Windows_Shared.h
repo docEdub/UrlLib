@@ -62,7 +62,10 @@ namespace UrlLib
         arcana::task<void, std::exception_ptr> LoadFileAsync(const std::wstring& path);
 
         Foundation::Uri m_uri{nullptr};
-        Storage::Streams::IBuffer m_httpResponseBuffer{};
+        Storage::Streams::IBuffer m_responseBuffer{};
+
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
         std::vector<std::byte> m_fileResponseBuffer;
+#endif
     };
 }

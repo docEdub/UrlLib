@@ -24,11 +24,7 @@ namespace UrlLib
     {
         winrt::hstring GetInstalledLocation()
         {
-            WCHAR modulePath[4096];
-            DWORD result{::GetModuleFileNameW(nullptr, modulePath, ARRAYSIZE(modulePath))};
-            winrt::check_bool(result != 0 && result != std::size(modulePath));
-            winrt::check_hresult(PathCchRemoveFileSpec(modulePath, ARRAYSIZE(modulePath)));
-            return modulePath;
+            return ApplicationModel::Package::Current().InstalledLocation().Path();
         }
     }
 
@@ -36,14 +32,22 @@ namespace UrlLib
     {
         try
         {
-            if (m_uri.SchemeName() == L"app" || m_uri.SchemeName() == L"file")
+            if (m_uri.SchemeName() == L"app")
             {
-                auto path = GetLocalPath(m_uri);
-                if (m_uri.SchemeName() == L"app")
-                {
-                    path = std::wstring(GetInstalledLocation()) + L'\\' + path;
-                }
-                return LoadFileAsync(path);
+                return arcana::create_task<std::exception_ptr>(Storage::StorageFolder::GetFolderFromPathAsync(GetInstalledLocation()))
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this, m_uri{m_uri}](Storage::StorageFolder folder) {
+                        return arcana::create_task<std::exception_ptr>(folder.GetFileAsync(GetLocalPath(m_uri)));
+                    })
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
+                        return LoadFileAsync(file);
+                    });
+            }
+            else if (m_uri.SchemeName() == L"file")
+            {
+                return arcana::create_task<std::exception_ptr>(Storage::StorageFile::GetFileFromPathAsync(GetLocalPath(m_uri)))
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::StorageFile file) {
+                        return LoadFileAsync(file);
+                    });
             }
             else
             {
@@ -116,7 +120,7 @@ namespace UrlLib
                                 return arcana::create_task<std::exception_ptr>(responseMessage.Content().ReadAsBufferAsync())
                                     .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer)
                                     {
-                                        m_httpResponseBuffer = std::move(buffer);
+                                        m_responseBuffer = std::move(buffer);
                                         m_statusCode = UrlStatusCode::Ok;
                                     });
                             }
@@ -137,18 +141,15 @@ namespace UrlLib
 
     gsl::span<const std::byte> UrlRequest::Impl::ResponseBuffer() const
     {
-        if (!m_fileResponseBuffer.empty())
+        if (!m_responseBuffer)
         {
-            return {m_fileResponseBuffer.data(), m_fileResponseBuffer.size()};
+            return {};
         }
-        else if (m_httpResponseBuffer)
-        {
-            std::byte* bytes;
-            auto bufferByteAccess = m_httpResponseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
-            winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
-            return {bytes, gsl::narrow_cast<std::size_t>(m_httpResponseBuffer.Length())};
-        }
-        return {};
+
+        std::byte* bytes;
+        auto bufferByteAccess = m_responseBuffer.as<::Windows::Storage::Streams::IBufferByteAccess>();
+        winrt::check_hresult(bufferByteAccess->Buffer(reinterpret_cast<byte**>(&bytes)));
+        return {bytes, gsl::narrow_cast<std::size_t>(m_responseBuffer.Length())};
     }
 
     arcana::task<void, std::exception_ptr> UrlRequest::Impl::LoadFileAsync(const std::wstring& path)
@@ -157,36 +158,19 @@ namespace UrlLib
         {
             case UrlResponseType::String:
             {
-                return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
-                    std::ifstream file(path);
-                    if (!file.good())
-                    {
-                        std::stringstream msg;
-                        msg << "Failed to read file " << path.c_str();
-                        throw std::runtime_error{msg.str()};
-                    }
-
-                    std::stringstream ss;
-                    ss << file.rdbuf();
-
-                    m_responseString = ss.str();
-                    m_statusCode = UrlStatusCode::Ok;
-                });
+                return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadTextAsync(file))
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](winrt::hstring text) {
+                        m_responseString = winrt::to_string(text);
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
             }
             case UrlResponseType::Buffer:
             {
-                return arcana::make_task(arcana::threadpool_scheduler, m_cancellationSource, [this, path] {
-                    std::ifstream file(path, std::ios::binary);
-                    if (!file.good())
-                    {
-                        std::stringstream msg;
-                        msg << "Failed to read file " << path.c_str();
-                        throw std::runtime_error{msg.str()};
-                    }
-
-                    file.read(reinterpret_cast<char*>(m_fileResponseBuffer.data()), std::filesystem::file_size(path));
-                    m_statusCode = UrlStatusCode::Ok;
-                });
+                return arcana::create_task<std::exception_ptr>(Storage::FileIO::ReadBufferAsync(file))
+                    .then(arcana::inline_scheduler, m_cancellationSource, [this](Storage::Streams::IBuffer buffer) {
+                        m_responseBuffer = std::move(buffer);
+                        m_statusCode = UrlStatusCode::Ok;
+                    });
             }
             default:
             {
